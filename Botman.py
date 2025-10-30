@@ -15,6 +15,12 @@ def start_keyboard():
 
 @dp.message(F.text == "/start")
 async def start_message(message: types.Message):
+    # ری‌اکشن قلب به پیام کاربر
+    try:
+        await bot.send_message(message.chat.id, "❤️")
+    except:
+        pass
+
     await message.answer(
         "🚀 ربات در حال آپدیت است...",
         reply_markup=start_keyboard()
