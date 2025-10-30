@@ -1,22 +1,26 @@
 import asyncio
-from aiogram import Bot, Dispatcher, types, F, exceptions
+from aiogram import Bot, Dispatcher, types, exceptions
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 
 # ================= تنظیمات =================
 MANAGER_TOKEN = "8230683502:AAFNKrZd-86yrx3ckGlA0BjgSx3vajCp8Es"
-ADMIN_ID = 7503028992  # ادمین برای دریافت نظرات
-CHANNEL_ID = "@sfg_team1"  # کانال برای عضویت اجباری
+ADMIN_ID = 7503028992
+CHANNEL_ID = "@sfg_team1"
 
 manager_bot = Bot(token=MANAGER_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# {user_id: {"bots": [{"bot": Bot, "token": str, "messages": []}]}}
-user_bots = {}
+user_bots = {}  # {user_id: {"bots": [{"bot": Bot, "token": str, "messages": []}]}}
+
+# ================= وضعیت FSM =================
+class UserBotStates(StatesGroup):
+    waiting_token = State()
 
 # ================= توابع کمکی =================
 async def delete_messages(bot: Bot, chat_id: int, messages: list):
@@ -58,72 +62,63 @@ async def start_cmd(message: types.Message, state: FSMContext):
             await message.answer("❌ لطفا ابتدا عضو کانال شوید و دوباره /start را بزنید.")
             return
     except:
-        pass  # اگر کانال خصوصی یا محدود باشد
+        pass
 
-    await message.answer(
-        "سلام! لطفا توکن ربات خود را وارد کنید تا مدیریت فعال شود:"
-    )
-    await state.set_state("waiting_token")
+    await message.answer("سلام! لطفا توکن ربات خود را وارد کنید تا مدیریت فعال شود:")
+    await state.set_state(UserBotStates.waiting_token)
 
-@dp.message(F.text, state="waiting_token")
+# دریافت توکن بدون ارور registrar
+@dp.message(UserBotStates.waiting_token)
 async def receive_token(message: types.Message, state: FSMContext):
     user_token = message.text.strip()
     try:
         user_bot = Bot(token=user_token)
-        me = await user_bot.get_me()  # بررسی معتبر بودن توکن
+        me = await user_bot.get_me()
     except:
         await message.answer("❌ توکن نامعتبر است، دوباره امتحان کنید.")
         return
 
-    # ذخیره ربات کاربر
     user_id = message.from_user.id
     if user_id not in user_bots:
         user_bots[user_id] = {"bots": []}
     bot_data = {"bot": user_bot, "token": user_token, "messages": []}
     user_bots[user_id]["bots"].append(bot_data)
 
-    # شروع پاکسازی پیام‌ها
     asyncio.create_task(clear_messages_loop(user_id, user_bot, bot_data))
-
     await state.clear()
+
     await message.answer(
         f"✅ ربات {me.username} با موفقیت اضافه شد!",
         reply_markup=build_main_keyboard()
     )
 
 # ================= کال‌بک‌ها =================
-@dp.callback_query(F.data == "broadcast")
+@dp.callback_query(lambda c: c.data == "broadcast")
 async def broadcast_handler(query: types.CallbackQuery):
     await query.message.answer("پیام همگانی را وارد کنید:")
 
-@dp.callback_query(F.data == "add_button")
+@dp.callback_query(lambda c: c.data == "add_button")
 async def add_button_handler(query: types.CallbackQuery):
     await query.message.answer("متن دکمه و لینک را وارد کنید:")
 
-@dp.callback_query(F.data == "toggle_bot")
+@dp.callback_query(lambda c: c.data == "toggle_bot")
 async def toggle_bot_handler(query: types.CallbackQuery):
     user_id = query.from_user.id
     if user_id not in user_bots or not user_bots[user_id]["bots"]:
         await query.message.answer("❌ شما هنوز رباتی اضافه نکرده‌اید.")
         return
-
-    for bot_data in user_bots[user_id]["bots"]:
-        bot = bot_data["bot"]
-        # نمونه: روشن/خاموش کردن ساده
-        # در عمل می‌توان پیام‌ها را متوقف یا فعال کرد
     await query.message.answer("🔄 وضعیت ربات‌ها تغییر کرد.")
 
-@dp.callback_query(F.data == "support")
+@dp.callback_query(lambda c: c.data == "support")
 async def support_handler(query: types.CallbackQuery):
     await query.message.answer("📬 برای پشتیبانی با @Amirlphastam تماس بگیرید.")
 
-@dp.callback_query(F.data == "feedback")
+@dp.callback_query(lambda c: c.data == "feedback")
 async def feedback_handler(query: types.CallbackQuery):
     await query.message.answer("📝 نظر خود را ارسال کنید:")
 
-@dp.message(F.text)
+@dp.message(lambda m: True)
 async def forward_feedback(message: types.Message):
-    # اگر پیام از کاربر به عنوان نظر باشه
     await manager_bot.send_message(ADMIN_ID, f"نظر از {message.from_user.id}:\n{message.text}")
 
 # ================= اجرای ربات =================
@@ -133,4 +128,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-        
+    
