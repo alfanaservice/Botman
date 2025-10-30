@@ -1,39 +1,37 @@
-import telebot
-import requests
+from telebot import TeleBot, types
 
-# 🔹 توکن ربات مدیر (ربات اصلی)
-MANAGER_TOKEN = "8230683502:AAFNKrZd-86yrx3ckGlA0BjgSx3vajCp8Es"
+bot = TeleBot(USER_TOKEN)
 
-# 🔹 آدرس فایل خام GitHub که قراره ربات‌ها ازش کد بگیرن
-GITHUB_RAW_URL = "https://raw.githubusercontent.com/USERNAME/REPOSITORY/main/user_bot.py"
-
-bot = telebot.TeleBot(MANAGER_TOKEN)
-
-# حافظه موقت (برای نگه‌داری توکن کاربران)
-user_tokens = {}
-
-@bot.message_handler(commands=["start"])
-def start(message):
-    bot.reply_to(message, "👋 سلام! لطفاً توکن رباتت رو بفرست تا مدیریتش رو فعال کنم.")
+@bot.message_handler(commands=['start'])
+def start(msg):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add("📢 کانال ما", "ℹ️ درباره ما", "⚙️ تنظیمات", "💬 پشتیبانی")
+    bot.send_message(
+        msg.chat.id,
+        "👋 سلام!\nبه ربات رسمی خوش اومدی 😎\n"
+        "از منوی زیر استفاده کن 👇",
+        reply_markup=markup
+    )
 
 @bot.message_handler(func=lambda m: True)
-def handle_token(message):
-    token = message.text.strip()
-    if len(token) < 40 or not token.startswith(""):
-        bot.reply_to(message, "❌ توکن معتبر نیست، لطفاً دوباره وارد کن.")
-        return
+def handler(msg):
+    if msg.text == "📢 کانال ما":
+        bot.send_message(msg.chat.id, "📣 عضو کانال ما شوید:\nhttps://t.me/YOUR_CHANNEL")
+    elif msg.text == "ℹ️ درباره ما":
+        bot.send_message(msg.chat.id, "🤖 این ربات با عشق ساخته شده 💖")
+    elif msg.text == "⚙️ تنظیمات":
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("🔊 صدا روشن", "🔇 صدا خاموش", "⬅️ بازگشت")
+        bot.send_message(msg.chat.id, "⚙️ تنظیمات دلخواهت رو انتخاب کن:", reply_markup=markup)
+    elif msg.text == "💬 پشتیبانی":
+        bot.send_message(msg.chat.id, "📞 برای پشتیبانی به @YOUR_TELEGRAM پیام بده.")
+    elif msg.text == "🔊 صدا روشن":
+        bot.send_message(msg.chat.id, "✅ صدا فعال شد 🎵")
+    elif msg.text == "🔇 صدا خاموش":
+        bot.send_message(msg.chat.id, "🔕 صدا غیرفعال شد")
+    elif msg.text == "⬅️ بازگشت":
+        start(msg)
+    else:
+        bot.send_message(msg.chat.id, f"❓ متوجه نشدم: {msg.text}")
 
-    user_tokens[message.from_user.id] = token
-    bot.reply_to(message, "✅ توکن ذخیره شد!\nدر حال راه‌اندازی ربات اختصاصی شما...")
-
-    # تلاش برای اجرای ربات از GitHub
-    try:
-        code = requests.get(GITHUB_RAW_URL).text
-        exec_env = {"USER_TOKEN": token}
-        exec(code, exec_env)
-        bot.send_message(message.chat.id, "🤖 ربات شما با موفقیت از GitHub اجرا شد!")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"⚠️ خطا در اجرای کد: {e}")
-
-print("🚀 Manager Bot is running...")
 bot.infinity_polling()
