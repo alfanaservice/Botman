@@ -10,7 +10,7 @@ dp = Dispatcher()
 
 def start_keyboard():
     kb = InlineKeyboardBuilder()
-    kb.add(InlineKeyboardButton(text="اخبار ربات", url="https://t.me/sfg_newsbot"))
+    kb.add(InlineKeyboardButton(text="اخبار ربات", url="https://t.me/sfg_newsbot/5"))
     return kb.as_markup()
 
 @dp.message(F.text == "/start")
