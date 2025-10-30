@@ -1,120 +1,93 @@
-from telebot import TeleBot, types
-import datetime
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils import executor
 
-bot = TeleBot(USER_TOKEN)
+# ======= ذخیره توکن های کاربران =======
+user_bots = {}  # {user_id: Bot}
 
-# ---------------------------
-# ⚙️ تنظیمات اولیه
-# ---------------------------
-ADMIN_USERNAME = "@amirlphastam"
-CHANNEL_LINK = "https://t.me/Sfg_team1"
-SUPPORT_LINK = "https://t.me/amirlphastam"
-BOT_NAME = "💎 Manger 💎"
+# ======= استارت ربات منیجر =======
+MANAGER_TOKEN = "توکن_منیجر"
+manager_bot = Bot(token=MANAGER_TOKEN)
+dp = Dispatcher(manager_bot)
 
-# ---------------------------
-# 🔹 تابع منوی اصلی
-# ---------------------------
-def main_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    markup.add("📢 کانال", "💬 پشتیبانی", "⚙️ تنظیمات", "ℹ️ درباره ما")
-    markup.add("📊 وضعیت ربات", "📨 ارسال نظر")
-    return markup
-
-# ---------------------------
-# 🔹 /start
-# ---------------------------
-@bot.message_handler(commands=["start"])
-def start(msg):
-    name = msg.from_user.first_name or "کاربر"
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    bot.send_message(
-        msg.chat.id,
-        f"👋 سلام {name}!\n"
-        f"به {BOT_NAME} خوش اومدی 😎\n\n"
-        "از منوی زیر استفاده کن 👇",
-        reply_markup=main_menu()
+# ======= استارت کاربر =======
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    await message.answer(
+        "سلام! توکن ربات خودت رو بده تا رباتتو شخصی سازی کنیم."
     )
-    print(f"[{now}] کاربر جدید: {msg.from_user.id} ({name})")
 
-# ---------------------------
-# 🔹 پاسخ به دکمه‌های منوی اصلی
-# ---------------------------
-@bot.message_handler(func=lambda m: True)
-def main_handler(msg):
-    text = msg.text
-    chat_id = msg.chat.id
-
-    if text == "📢 کانال":
-        bot.send_message(chat_id, f"📣 عضو کانال ما شوید:\n{CHANNEL_LINK}")
-
-    elif text == "💬 پشتیبانی":
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("✉️ تماس با پشتیبانی", url=SUPPORT_LINK))
-        bot.send_message(chat_id, "📞 برای ارتباط با پشتیبانی روی دکمه زیر بزن:", reply_markup=markup)
-
-    elif text == "⚙️ تنظیمات":
-        settings_menu(chat_id)
-
-    elif text == "ℹ️ درباره ما":
-        bot.send_message(chat_id,
-            f"🤖 {BOT_NAME}\n"
-            "نسخه: 1.0.0\n"
-            "توسعه‌دهنده: " + ADMIN_USERNAME
+# ======= گرفتن توکن ربات کاربر =======
+@dp.message_handler(lambda m: m.text.startswith("BotToken:"))
+async def register_bot(message: types.Message):
+    token = message.text.split("BotToken:")[1].strip()
+    try:
+        user_bot = Bot(token=token)
+        user_bots[message.from_user.id] = user_bot
+        await message.answer(
+            "✅ ربات شما ثبت شد!\nحالا میتونی دکمه و پیام‌هاشو شخصی سازی کنی.",
+            reply_markup=InlineKeyboardMarkup().add(
+                InlineKeyboardButton("➕ اضافه کردن دکمه", callback_data="add_button"),
+                InlineKeyboardButton("✏️ ارسال پیام تست", callback_data="send_test")
+            )
         )
+    except Exception as e:
+        await message.answer(f"❌ توکن اشتباه است یا ربات فعال نیست.\nخطا: {e}")
 
-    elif text == "📊 وضعیت ربات":
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔄 بروزرسانی وضعیت", callback_data="refresh"))
-        bot.send_message(chat_id, "📈 وضعیت فعلی:\nهمه‌چیز عالیه ✅", reply_markup=markup)
+# ======= هندلر دکمه ها =======
+@dp.callback_query_handler(lambda c: True)
+async def buttons(call: types.CallbackQuery):
+    user_id = call.from_user.id
+    if user_id not in user_bots:
+        await call.answer("ابتدا توکن رباتت رو بده!", show_alert=True)
+        return
 
-    elif text == "📨 ارسال نظر":
-        bot.send_message(chat_id, "💭 لطفاً نظرت رو بنویس تا به ادمین ارسال کنم ✍️")
-        bot.register_next_step_handler(msg, send_feedback)
+    if call.data == "add_button":
+        await call.message.answer("اسم دکمه و متن پاسخشو بده (فرمت: متن_دکمه|متن_پاسخ)")
+    elif call.data == "send_test":
+        await call.message.answer("در حال ارسال پیام تست به ربات شما...")
+        user_bot = user_bots[user_id]
+        try:
+            await user_bot.send_message(chat_id=user_id, text="این پیام توسط ربات شما ارسال شد ✅")
+            await call.message.answer("پیام تست با موفقیت ارسال شد!")
+        except Exception as e:
+            await call.message.answer(f"❌ خطا در ارسال پیام: {e}")
 
-    elif text == "⬅️ بازگشت":
-        bot.send_message(chat_id, "↩️ بازگشت به منوی اصلی", reply_markup=main_menu())
+# ======= هندلر پیام دکمه جدید =======
+@dp.message_handler(lambda m: "|" in m.text)
+async def add_user_button(message: types.Message):
+    user_id = message.from_user.id
+    if user_id not in user_bots:
+        await message.answer("ابتدا توکن رباتت رو بده!")
+        return
 
+    btn_text, reply_text = message.text.split("|", 1)
+    user_bot = user_bots[user_id]
+
+    # ساخت کیبورد با دکمه جدید
+    keyboard = InlineKeyboardMarkup().add(
+        InlineKeyboardButton(btn_text, callback_data=f"userbtn_{btn_text}")
+    )
+    # ذخیره دکمه ها در memory ساده
+    if not hasattr(user_bot, "buttons"):
+        user_bot.buttons = {}
+    user_bot.buttons[btn_text] = reply_text
+
+    await message.answer(f"✅ دکمه `{btn_text}` اضافه شد!", reply_markup=keyboard)
+
+# ======= هندلر دکمه های کاربر =======
+@dp.callback_query_handler(lambda c: c.data.startswith("userbtn_"))
+async def user_buttons_handler(call: types.CallbackQuery):
+    user_id = call.from_user.id
+    btn_text = call.data.replace("userbtn_", "")
+    user_bot = user_bots.get(user_id)
+    if user_bot and hasattr(user_bot, "buttons") and btn_text in user_bot.buttons:
+        await call.message.answer(user_bot.buttons[btn_text])
     else:
-        bot.send_message(chat_id, f"❓ دستور ناشناخته: {text}")
+        await call.answer("❌ دکمه نامعتبر است!", show_alert=True)
 
-# ---------------------------
-# 🔹 منوی تنظیمات
-# ---------------------------
-def settings_menu(chat_id):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    markup.add("🔊 صدا روشن", "🔇 صدا خاموش")
-    markup.add("🌙 حالت شب", "☀️ حالت روز")
-    markup.add("⬅️ بازگشت")
-    bot.send_message(chat_id, "⚙️ تنظیمات ربات:", reply_markup=markup)
-
-# ---------------------------
-# 🔹 ارسال بازخورد به ادمین
-# ---------------------------
-def send_feedback(msg):
-    feedback = msg.text
-    bot.send_message(msg.chat.id, "✅ نظر شما ارسال شد، ممنون از بازخوردتون 🙏")
-    bot.send_message(
-        ADMIN_USERNAME,
-        f"📬 بازخورد جدید از [{msg.from_user.first_name}](tg://user?id={msg.from_user.id}):\n\n{feedback}",
-        parse_mode="Markdown"
-    )
-
-# ---------------------------
-# 🔹 کال‌بک اینلاین (برای بروزرسانی وضعیت)
-# ---------------------------
-@bot.callback_query_handler(func=lambda call: True)
-def callback(call):
-    if call.data == "refresh":
-        bot.edit_message_text(
-            "✅ وضعیت ربات: فعال\n📅 آخرین بروزرسانی: هم‌اکنون ⏱",
-            call.message.chat.id,
-            call.message.message_id,
-            reply_markup=call.message.reply_markup
-        )
-
-# ---------------------------
-# 🚀 اجرای ربات
-# ---------------------------
-print("✅ ربات با موفقیت اجرا شد!")
-bot.infinity_polling()
+# ======= اجرای ربات منیجر =======
+if __name__ == "__main__":
+    executor.start_polling(dp, skip_updates=True)
     
