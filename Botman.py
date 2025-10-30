@@ -2,7 +2,7 @@ import json
 import asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.filters import Command
+from aiogram.filters import Command, Text
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram import exceptions
@@ -54,14 +54,24 @@ def main_keyboard():
     ])
     return kb
 
+async def check_membership(user_id: int):
+    try:
+        member = await manager_bot.get_chat_member(CHANNEL_ID, user_id)
+        if member.status in ["left", "kicked"]:
+            return False
+        return True
+    except:
+        return False
+
+# =================== START =====================
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
-    member = await manager_bot.get_chat_member(CHANNEL_ID, message.from_user.id)
-    if member.status in ["left", "kicked"]:
-        await message.answer("❌ لطفا ابتدا عضو کانال شوید و دوباره /start را بزنید.")
+    user_id = str(message.from_user.id)
+    is_member = await check_membership(message.from_user.id)
+    if not is_member:
+        await message.answer(f"❌ لطفا ابتدا عضو کانال {CHANNEL_ID} شوید و دوباره /start بزنید.")
         return
 
-    user_id = str(message.from_user.id)
     if user_id in saved_tokens:
         await message.answer(
             f"ربات شما فعال است. توکن ثبت شده:\n`{saved_tokens[user_id]}`",
@@ -70,15 +80,16 @@ async def cmd_start(message: types.Message, state: FSMContext):
     else:
         await message.answer("لطفا توکن ربات خود را ارسال کنید:")
 
-@dp.message(F.text)
+# =================== RECEIVE TOKEN =====================
+@dp.message(F.text & ~F.text.startswith("/"))
 async def receive_token(message: types.Message):
     user_id = str(message.from_user.id)
     if user_id in saved_tokens:
-        return  # قبلاً ثبت شده
+        return
     token = message.text.strip()
     try:
         bot_test = Bot(token=token)
-        await bot_test.get_me()  # بررسی توکن
+        await bot_test.get_me()
     except:
         await message.answer("❌ توکن نامعتبر است. دوباره امتحان کنید.")
         return
@@ -89,15 +100,16 @@ async def receive_token(message: types.Message):
     asyncio.create_task(clear_messages_loop(user_id, bot_test))
     await message.answer("✅ توکن ثبت شد و ربات شما فعال است.", reply_markup=main_keyboard())
 
-@dp.callback_query(F.data == "broadcast")
+# =================== CALLBACK HANDLERS =====================
+@dp.callback_query(Text("broadcast"))
 async def broadcast_handler(query: types.CallbackQuery):
     await query.message.answer("پیام همگانی را وارد کنید:")
 
-@dp.callback_query(F.data == "add_button")
+@dp.callback_query(Text("add_button"))
 async def add_button_handler(query: types.CallbackQuery):
     await query.message.answer("متن دکمه و لینک را وارد کنید:")
 
-@dp.callback_query(F.data == "toggle_bot")
+@dp.callback_query(Text("toggle_bot"))
 async def toggle_bot_handler(query: types.CallbackQuery):
     user_id = str(query.from_user.id)
     if user_id in user_bots:
@@ -113,24 +125,36 @@ async def toggle_bot_handler(query: types.CallbackQuery):
         else:
             await query.message.answer("ابتدا توکن خود را ارسال کنید.")
 
-@dp.callback_query(F.data == "support")
+@dp.callback_query(Text("support"))
 async def support_handler(query: types.CallbackQuery):
     await query.message.answer("📬 برای پشتیبانی با @amirlphastam تماس بگیرید.")
 
-@dp.callback_query(F.data == "feedback")
+@dp.callback_query(Text("feedback"))
 async def feedback_handler(query: types.CallbackQuery):
     await query.message.answer("📝 لطفا نظر خود را ارسال کنید:")
 
-@dp.message(F.text)
+# =================== FEEDBACK =====================
+@dp.message(F.text & ~F.text.startswith("/"))
 async def feedback_receive(message: types.Message):
     user_id = message.from_user.id
     await manager_bot.send_message(FEEDBACK_CHAT, f"نظر از کاربر {user_id}:\n{message.text}")
     await message.answer("✅ نظر شما ارسال شد.")
 
+# =================== DELETE CHAT =====================
+@dp.message(Command("del"))
+async def delete_chat(message: types.Message):
+    user_id = str(message.from_user.id)
+    if user_id in user_bots:
+        msgs = user_bots[user_id].get("messages", [])
+        await delete_messages(user_bots[user_id]["bot"], message.chat.id, msgs)
+        user_bots[user_id]["messages"] = []
+    await message.delete()  # حذف پیام کاربر
+    await message.answer("🗑️ تمام پیام‌ها پاک شدند.")
+
+# =================== MAIN =====================
 async def main():
     print("🚀 Manager bot is running...")
     await dp.start_polling(manager_bot)
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
