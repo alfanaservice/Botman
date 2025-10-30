@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 
 # ================= تنظیمات =================
 MANAGER_TOKEN = "8230683502:AAFNKrZd-86yrx3ckGlA0BjgSx3vajCp8Es"
-ADMIN_ID = 123456789  # ادمین برای دریافت نظرات
+ADMIN_ID = 7503028992  # ادمین برای دریافت نظرات
 CHANNEL_ID = "@sfg_team1"  # کانال برای عضویت اجباری
 
 manager_bot = Bot(token=MANAGER_TOKEN)
