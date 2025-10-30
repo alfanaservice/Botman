@@ -5,7 +5,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 import asyncio
 
 MANAGER_TOKEN = "8230683502:AAFNKrZd-86yrx3ckGlA0BjgSx3vajCp8Es"
-CHANNEL_ID = "@sfg_team1"  # کانال برای عضویت اجباری
+CHANNEL_ID = "@sfg_team1"
 SUPPORT_USER = "@amirlphastam"
 
 manager_bot = Bot(token=MANAGER_TOKEN)
@@ -47,7 +47,6 @@ def create_main_keyboard():
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: types.Message):
-    # بررسی عضویت
     try:
         member = await manager_bot.get_chat_member(CHANNEL_ID, message.from_user.id)
         if member.status in ["left", "kicked"]:
@@ -65,10 +64,9 @@ async def cmd_start(message: types.Message):
 @dp.message()
 async def receive_token(message: types.Message):
     user_id = message.from_user.id
-    if user_id not in user_bots:
+    if user_id not in user_bots and not message.text.startswith("/"):
         token = message.text.strip()
         try:
-            # بررسی توکن با ساخت Bot
             temp_bot = Bot(token=token)
             await temp_bot.get_me()
             user_bots[user_id] = {"token": token, "messages": [], "bot": temp_bot}
@@ -89,7 +87,6 @@ async def add_button_handler(query: types.CallbackQuery):
 async def toggle_bot_handler(query: types.CallbackQuery):
     user_id = query.from_user.id
     if user_id in user_bots:
-        # فقط روشن/خاموش کردن داخلی
         await query.message.answer("🔄 ربات شما روشن/خاموش شد.")
     else:
         await query.message.answer("❌ ابتدا توکن خود را ارسال کنید.")
@@ -113,7 +110,6 @@ async def del_chat_handler(query: types.CallbackQuery):
 
 @dp.message()
 async def handle_feedback(message: types.Message):
-    # ارسال نظرات به پشتیبانی
     if not message.text.startswith("/"):
         await manager_bot.send_message(
             SUPPORT_USER,
@@ -127,4 +123,4 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
-        
+                             
