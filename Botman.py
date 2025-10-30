@@ -1,9 +1,10 @@
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
 from aiogram.filters.state import State, StatesGroup
 from aiogram import exceptions
 import asyncio
@@ -52,7 +53,7 @@ def build_main_keyboard():
     return kb
 
 # ================== دستورات ==================
-@dp.message(F.text == "/start")
+@dp.message(lambda message: message.text == "/start")
 async def cmd_start(message: types.Message, state: FSMContext):
     # بررسی عضویت
     try:
@@ -68,7 +69,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     await state.set_state(UserStates.waiting_token)
 
 # ================== دریافت توکن ==================
-@dp.message(UserStates.waiting_token)
+@dp.message(StateFilter(UserStates.waiting_token))
 async def receive_token(message: types.Message, state: FSMContext):
     user_token = message.text.strip()
     try:
@@ -88,15 +89,15 @@ async def receive_token(message: types.Message, state: FSMContext):
     )
 
 # ================== هندلرها ==================
-@dp.callback_query(F.data == "broadcast", state=UserStates.active)
+@dp.callback_query(lambda c: c.data == "broadcast", StateFilter(UserStates.active))
 async def broadcast_handler(query: types.CallbackQuery):
     await query.message.answer("📢 پیام همگانی خود را وارد کنید:")
 
-@dp.callback_query(F.data == "add_button", state=UserStates.active)
+@dp.callback_query(lambda c: c.data == "add_button", StateFilter(UserStates.active))
 async def add_button_handler(query: types.CallbackQuery):
     await query.message.answer("➕ متن دکمه و لینک را وارد کنید:")
 
-@dp.callback_query(F.data == "toggle_bot", state=UserStates.active)
+@dp.callback_query(lambda c: c.data == "toggle_bot", StateFilter(UserStates.active))
 async def toggle_bot_handler(query: types.CallbackQuery):
     user_id = query.from_user.id
     if user_id in user_bots:
@@ -106,15 +107,15 @@ async def toggle_bot_handler(query: types.CallbackQuery):
         await query.message.answer("✅ ربات روشن شد. پیام‌ها هر ۳۰ ثانیه پاک می‌شوند.")
         # برای راه‌اندازی دوباره، باید توکن از کاربر گرفته شود
 
-@dp.callback_query(F.data == "support", state=UserStates.active)
+@dp.callback_query(lambda c: c.data == "support", StateFilter(UserStates.active))
 async def support_handler(query: types.CallbackQuery):
     await query.message.answer(f"📬 برای پشتیبانی با @{ADMIN_USERNAME} تماس بگیرید.")
 
-@dp.callback_query(F.data == "feedback", state=UserStates.active)
+@dp.callback_query(lambda c: c.data == "feedback", StateFilter(UserStates.active))
 async def feedback_handler(query: types.CallbackQuery):
     await query.message.answer("📝 لطفا نظر خود را ارسال کنید:")
 
-@dp.message(UserStates.active)
+@dp.message(StateFilter(UserStates.active))
 async def feedback_receive(message: types.Message):
     # ارسال نظر به ادمین
     await manager_bot.send_message(
@@ -131,3 +132,4 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
+                        
