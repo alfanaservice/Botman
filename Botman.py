@@ -1,7 +1,8 @@
 import asyncio
 from aiogram import Bot, Dispatcher, types
+from aiogram.enums import ParseMode
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram import exceptions
 
@@ -40,7 +41,6 @@ def manager_keyboard():
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    # بررسی عضویت
     try:
         member = await bot.get_chat_member(CHANNEL_ID, message.from_user.id)
         if member.status in ["left", "kicked"]:
@@ -86,3 +86,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
