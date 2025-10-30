@@ -6,10 +6,10 @@ bot = TeleBot(USER_TOKEN)
 # ---------------------------
 # ⚙️ تنظیمات اولیه
 # ---------------------------
-ADMIN_USERNAME = "@YOUR_ADMIN"
-CHANNEL_LINK = "https://t.me/YOUR_CHANNEL"
-SUPPORT_LINK = "https://t.me/YOUR_SUPPORT"
-BOT_NAME = "💎 ربات رسمی شما 💎"
+ADMIN_USERNAME = "@amirlphastam"
+CHANNEL_LINK = "https://t.me/Sfg_team1"
+SUPPORT_LINK = "https://t.me/amirlphastam"
+BOT_NAME = "💎 Manger 💎"
 
 # ---------------------------
 # 🔹 تابع منوی اصلی
