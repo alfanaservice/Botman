@@ -2,9 +2,8 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters.command import Command
-from aiogram.filters.text import Text
+from aiogram.filters.text import Text as TextFilter
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.context import FSMContext
 from aiogram import exceptions
 
 MANAGER_TOKEN = "8230683502:AAFNKrZd-86yrx3ckGlA0BjgSx3vajCp8Es"
@@ -15,9 +14,7 @@ manager_bot = Bot(token=MANAGER_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# ذخیره‌ی توکن و وضعیت ربات کاربران
 user_bots = {}  # user_id: {"token": str, "messages": list}
-
 
 async def delete_messages(bot: Bot, chat_id: int, messages: list):
     for msg_id in messages:
@@ -26,14 +23,12 @@ async def delete_messages(bot: Bot, chat_id: int, messages: list):
         except exceptions.MessageToDeleteNotFound:
             pass
 
-
 async def clear_messages_loop(user_id, bot):
     while user_id in user_bots:
         await asyncio.sleep(30)
         messages = user_bots[user_id].get("messages", [])
         await delete_messages(bot, user_id, messages)
         user_bots[user_id]["messages"] = []
-
 
 def main_keyboard():
     kb = InlineKeyboardMarkup(row_width=1)
@@ -46,9 +41,8 @@ def main_keyboard():
     )
     return kb
 
-
 @dp.message(Command("start"))
-async def cmd_start(message: types.Message, state: FSMContext):
+async def cmd_start(message: types.Message):
     # بررسی عضویت
     try:
         member = await manager_bot.get_chat_member(CHANNEL_ID, message.from_user.id)
@@ -61,7 +55,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await message.answer("❌ کانال برای بررسی عضویت صحیح نیست.")
         return
 
-    # اگر قبلا توکن داده شده
     if message.from_user.id in user_bots:
         await message.answer(
             f"سلام! ربات شما فعال است.\nتوکن ثبت شده: `{user_bots[message.from_user.id]['token']}`",
@@ -73,12 +66,10 @@ async def cmd_start(message: types.Message, state: FSMContext):
             "سلام! لطفا توکن ربات خود را ارسال کنید تا ربات فعال شود."
         )
 
-
-@dp.message()
+@dp.message(TextFilter())
 async def receive_token(message: types.Message):
     user_id = message.from_user.id
     token = message.text.strip()
-    # بررسی فرمت توکن ساده
     if ":" not in token:
         await message.answer("❌ توکن معتبر نیست، دوباره امتحان کنید.")
         return
@@ -88,22 +79,17 @@ async def receive_token(message: types.Message):
         f"✅ توکن ثبت شد.\nربات شما آماده استفاده است.",
         reply_markup=main_keyboard()
     )
-
-    # شروع پاکسازی پیام‌ها
     asyncio.create_task(clear_messages_loop(user_id, manager_bot))
 
-
-@dp.callback_query(Text("broadcast"))
+@dp.callback_query(TextFilter("broadcast"))
 async def broadcast_handler(query: types.CallbackQuery):
     await query.message.answer("پیام همگانی را ارسال کنید:")
 
-
-@dp.callback_query(Text("add_button"))
+@dp.callback_query(TextFilter("add_button"))
 async def add_button_handler(query: types.CallbackQuery):
     await query.message.answer("متن دکمه و لینک را ارسال کنید:")
 
-
-@dp.callback_query(Text("toggle_bot"))
+@dp.callback_query(TextFilter("toggle_bot"))
 async def toggle_bot_handler(query: types.CallbackQuery):
     user_id = query.from_user.id
     if user_id in user_bots:
@@ -112,18 +98,15 @@ async def toggle_bot_handler(query: types.CallbackQuery):
     else:
         await query.message.answer("ربات شما روشن شد.")
 
-
-@dp.callback_query(Text("support"))
+@dp.callback_query(TextFilter("support"))
 async def support_handler(query: types.CallbackQuery):
     await query.message.answer(f"📬 برای پشتیبانی با {SUPPORT_USER} تماس بگیرید.")
 
-
-@dp.callback_query(Text("feedback"))
+@dp.callback_query(TextFilter("feedback"))
 async def feedback_handler(query: types.CallbackQuery):
     await query.message.answer(
         f"📝 لطفا نظر خود را ارسال کنید. بعد از ارسال، نظر شما به {SUPPORT_USER} فرستاده می‌شود."
     )
-
 
 @dp.message(Command("del"))
 async def del_chat(message: types.Message):
@@ -138,20 +121,17 @@ async def del_chat(message: types.Message):
         pass
     await message.answer("تمام پیام‌ها پاک شدند.")
 
-
-@dp.message()
+@dp.message(TextFilter())
 async def forward_feedback(message: types.Message):
     user_id = message.from_user.id
     if message.text.startswith("/"):
-        return  # فرمان‌ها را ارسال نکن
+        return
     if user_id in user_bots:
         await manager_bot.send_message(SUPPORT_USER, f"نظر از {user_id}:\n{message.text}")
-
 
 async def main():
     print("🚀 Manager bot is running...")
     await dp.start_polling(manager_bot)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
