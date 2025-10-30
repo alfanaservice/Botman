@@ -24,7 +24,7 @@ class UserStates(StatesGroup):
     waiting_token = State()
     active = State()
 
-# وضعیت ربات‌ها: {user_id: {"bot": Bot, "messages": []}}
+# وضعیت ربات‌ها
 user_bots = {}
 
 # ================== توابع کمکی ==================
@@ -69,7 +69,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     await state.set_state(UserStates.waiting_token)
 
 # ================== دریافت توکن ==================
-@dp.message(StateFilter(UserStates.waiting_token))
+@dp.message(filters=StateFilter(UserStates.waiting_token))
 async def receive_token(message: types.Message, state: FSMContext):
     user_token = message.text.strip()
     try:
@@ -89,15 +89,15 @@ async def receive_token(message: types.Message, state: FSMContext):
     )
 
 # ================== هندلرها ==================
-@dp.callback_query(lambda c: c.data == "broadcast", StateFilter(UserStates.active))
+@dp.callback_query(lambda c: c.data == "broadcast", filters=StateFilter(UserStates.active))
 async def broadcast_handler(query: types.CallbackQuery):
     await query.message.answer("📢 پیام همگانی خود را وارد کنید:")
 
-@dp.callback_query(lambda c: c.data == "add_button", StateFilter(UserStates.active))
+@dp.callback_query(lambda c: c.data == "add_button", filters=StateFilter(UserStates.active))
 async def add_button_handler(query: types.CallbackQuery):
     await query.message.answer("➕ متن دکمه و لینک را وارد کنید:")
 
-@dp.callback_query(lambda c: c.data == "toggle_bot", StateFilter(UserStates.active))
+@dp.callback_query(lambda c: c.data == "toggle_bot", filters=StateFilter(UserStates.active))
 async def toggle_bot_handler(query: types.CallbackQuery):
     user_id = query.from_user.id
     if user_id in user_bots:
@@ -105,19 +105,17 @@ async def toggle_bot_handler(query: types.CallbackQuery):
         await query.message.answer("🛑 ربات شما خاموش شد.")
     else:
         await query.message.answer("✅ ربات روشن شد. پیام‌ها هر ۳۰ ثانیه پاک می‌شوند.")
-        # برای راه‌اندازی دوباره، باید توکن از کاربر گرفته شود
 
-@dp.callback_query(lambda c: c.data == "support", StateFilter(UserStates.active))
+@dp.callback_query(lambda c: c.data == "support", filters=StateFilter(UserStates.active))
 async def support_handler(query: types.CallbackQuery):
     await query.message.answer(f"📬 برای پشتیبانی با @{ADMIN_USERNAME} تماس بگیرید.")
 
-@dp.callback_query(lambda c: c.data == "feedback", StateFilter(UserStates.active))
+@dp.callback_query(lambda c: c.data == "feedback", filters=StateFilter(UserStates.active))
 async def feedback_handler(query: types.CallbackQuery):
     await query.message.answer("📝 لطفا نظر خود را ارسال کنید:")
 
-@dp.message(StateFilter(UserStates.active))
+@dp.message(filters=StateFilter(UserStates.active))
 async def feedback_receive(message: types.Message):
-    # ارسال نظر به ادمین
     await manager_bot.send_message(
         ADMIN_USERNAME,
         f"💬 نظر از @{message.from_user.username} ({message.from_user.id}):\n\n{message.text}"
@@ -132,4 +130,4 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
-                        
+    
