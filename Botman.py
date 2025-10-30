@@ -1,128 +1,89 @@
-import asyncio
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from aiogram.filters import Command
-import json
-import os
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.context import FSMContext
+from aiogram import exceptions
+import asyncio
 
-# ==========================
-# مدیریت توکن‌ها
-# ==========================
-TOKENS_FILE = "user_tokens.json"
+MANAGER_TOKEN = "8230683502:AAFNKrZd-86yrx3ckGlA0BjgSx3vajCp8Es"
+CHANNEL_ID = "@sfg_team1"  # کانال برای عضویت اجباری
 
-def load_tokens():
-    if os.path.exists(TOKENS_FILE):
-        with open(TOKENS_FILE, "r") as f:
-            return json.load(f)
-    return {}
+manager_bot = Bot(token=MANAGER_TOKEN)
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
 
-def save_tokens(tokens):
-    with open(TOKENS_FILE, "w") as f:
-        json.dump(tokens, f)
+# وضعیت ربات‌ها
+user_bots = {}  # {user_id: Bot instance}
 
-user_tokens = load_tokens()
+async def delete_messages(bot: Bot, chat_id: int, messages: list):
+    for msg_id in messages:
+        try:
+            await bot.delete_message(chat_id, msg_id)
+        except exceptions.MessageToDeleteNotFound:
+            pass
 
-# ==========================
-# Dispatcher ربات منیجر
-# ==========================
-MANAGER_TOKEN = os.getenv("8230683502:AAFNKrZd-86yrx3ckGlA0BjgSx3vajCp8Es")  # توکن ربات منیجر روی هاست
-manager_bot = Bot(token=MANAGER_TOKEN, parse_mode="HTML")
-manager_dp = Dispatcher()
+async def clear_messages_loop(user_id, bot):
+    while True:
+        await asyncio.sleep(30)
+        if user_id in user_bots:
+            # پاک کردن پیام‌های کاربر و ربات
+            messages = user_bots[user_id].get("messages", [])
+            await delete_messages(bot, user_id, messages)
+            user_bots[user_id]["messages"] = []
 
-CHANNEL_USERNAME = "YourChannel"  # نام کانال برای عضویت اجباری
-
-# ==========================
-# دکمه‌ها شیشه‌ای
-# ==========================
-def main_keyboard():
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💬 ارسال نظر", callback_data="send_feedback"),
-         InlineKeyboardButton("🛠 پشتیبانی", callback_data="support")],
-        [InlineKeyboardButton("➕ اضافه کردن ربات", callback_data="add_bot")]
-    ])
-    return kb
-
-# ==========================
-# بررسی عضویت در کانال
-# ==========================
-async def check_subscription(user_id):
-    member = await manager_bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-    return member.status in ["member", "creator", "administrator"]
-
-# ==========================
-# استارت ربات منیجر
-# ==========================
-@manager_dp.message(Command("start"))
-async def start_cmd(message: types.Message):
-    subscribed = await check_subscription(message.from_user.id)
-    if not subscribed:
-        await message.answer(f"⚠️ برای استفاده از ربات ابتدا باید عضو کانال شوید: @Sfg_team1")
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message, state: FSMContext):
+    # بررسی عضویت
+    member = await manager_bot.get_chat_member(CHANNEL_ID, message.from_user.id)
+    if member.status in ["left", "kicked"]:
+        await message.answer("❌ لطفا ابتدا عضو کانال شوید و دوباره /start را بزنید.")
         return
 
-    await message.answer(
-        "<b>سلام! 👋 ربات منیجر آماده است.</b>\nتوکن ربات خود را وارد کنید یا یکی اضافه کنید.",
-        reply_markup=main_keyboard()
-    )
+    kb = InlineKeyboardBuilder()
+    kb.add(InlineKeyboardButton(text="💬 ارسال پیام همگانی", callback_data="broadcast"))
+    kb.add(InlineKeyboardButton(text="➕ اضافه کردن دکمه", callback_data="add_button"))
+    kb.add(InlineKeyboardButton(text="🔄 روشن/خاموش ربات", callback_data="toggle_bot"))
+    kb.add(InlineKeyboardButton(text="📨 پشتیبانی", callback_data="support"))
+    kb.add(InlineKeyboardButton(text="📝 ارسال نظر", callback_data="feedback"))
 
-# ==========================
-# هندلر دکمه‌ها
-# ==========================
-@manager_dp.callback_query(lambda c: c.data)
-async def callbacks_handler(callback: types.CallbackQuery):
-    if callback.data == "send_feedback":
-        await callback.message.answer("💬 لطفاً نظر خود را ارسال کنید:")
-    elif callback.data == "support":
-        await callback.message.answer("🛠 برای پشتیبانی با این آیدی تماس بگیرید: @YourSupport")
-    elif callback.data == "add_bot":
-        await callback.message.answer("🔑 توکن ربات خود را ارسال کنید:")
+    await message.answer("سلام! ربات منیجر شما فعال است.", 
+                         reply_markup=kb.as_markup(), parse_mode=ParseMode.MARKDOWN)
 
-    await callback.answer()
+@dp.callback_query(F.data == "broadcast")
+async def broadcast_handler(query: types.CallbackQuery):
+    await query.message.answer("پیام همگانی را وارد کنید:")
 
-# ==========================
-# دریافت توکن کاربر و ذخیره
-# ==========================
-@manager_dp.message()
-async def handle_tokens(message: types.Message):
-    text = message.text.strip()
-    if text.startswith("bot"):  # می‌تونی regex بذاری تا اعتبارسنجی بهتر باشه
-        user_tokens[str(message.from_user.id)] = text
-        save_tokens(user_tokens)
-        await message.answer("✅ توکن ذخیره شد. ربات شما آماده اجراست!")
-        asyncio.create_task(start_user_bot(message.from_user.id, text))
+@dp.callback_query(F.data == "add_button")
+async def add_button_handler(query: types.CallbackQuery):
+    await query.message.answer("متن دکمه و لینک را وارد کنید:")
 
-# ==========================
-# اجرای ربات کاربر
-# ==========================
-async def start_user_bot(user_id, token):
-    user_bot = Bot(token=token, parse_mode="HTML")
-    user_dp = Dispatcher()
+@dp.callback_query(F.data == "toggle_bot")
+async def toggle_bot_handler(query: types.CallbackQuery):
+    user_id = query.from_user.id
+    if user_id in user_bots:
+        user_bots.pop(user_id)
+        await query.message.answer("ربات شما خاموش شد.")
+    else:
+        # نمونه: راه‌اندازی یک ربات ساده
+        await query.message.answer("ربات شما روشن شد. تمام پیام‌ها پاک می‌شوند هر ۳۰ ثانیه.")
+        # در عمل توکن ربات کاربر را باید اینجا دریافت و Bot بسازد
+        # user_bots[user_id] = {"bot": Bot(token=user_token), "messages": []}
 
-    @user_dp.message()
-    async def echo_all(msg: types.Message):
-        # پیام شیشه‌ای
-        await msg.answer(f"💎 پیام شما دریافت شد:\n<code>{msg.text}</code>")
+@dp.callback_query(F.data == "support")
+async def support_handler(query: types.CallbackQuery):
+    await query.message.answer("📬 برای پشتیبانی با @Amirlphastam تماس بگیرید.")
 
-    # پاک کردن پیام‌ها هر ۳۰ ثانیه
-    async def auto_delete():
-        while True:
-            await asyncio.sleep(30)
-            try:
-                updates = await user_bot.get_updates()
-                for upd in updates:
-                    if upd.message:
-                        await user_bot.delete_message(upd.message.chat.id, upd.message.message_id)
-            except:
-                pass
+@dp.callback_query(F.data == "feedback")
+async def feedback_handler(query: types.CallbackQuery):
+    await query.message.answer("📝 لطفا نظر خود را ارسال کنید:")
 
-    asyncio.create_task(auto_delete())
-    await user_dp.start_polling(user_bot)
-
-# ==========================
-# اجرای ربات منیجر
-# ==========================
 async def main():
-    await manager_dp.start_polling(manager_bot)
+    print("🚀 Manager bot is running...")
+    await dp.start_polling(manager_bot)
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())
-    
+                   
